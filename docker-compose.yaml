@@ -1,0 +1,11 @@
+version: '3'
+services:
+  nats:
+    image: nats:2.0.0
+  client:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    image: nokamoto/poc-go-nats:latest
+    depends_on:
+      - nats
