@@ -8,6 +8,7 @@ test: fmt
 	go mod tidy
 	docker-compose down
 	docker-compose build
+	docker-compose up
 
 mod:
 	rm -f go.mod go.sum
