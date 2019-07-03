@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -148,6 +149,40 @@ func requestReply(nc *nats.Conn) {
 	}
 }
 
+func queueSubscribersScalability(nc *nats.Conn) {
+	log.Println()
+	log.Println("https://nats-io.github.io/docs/developer/concepts/queue.html")
+
+	size := 10
+
+	wg := sync.WaitGroup{}
+	wg.Add(size)
+
+	_, err := nc.QueueSubscribe("updates", "worker", func(m *nats.Msg) {
+		log.Printf("0: updates(worker): %s", string(m.Data))
+		wg.Done()
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = nc.QueueSubscribe("updates", "worker", func(m *nats.Msg) {
+		log.Printf("1: updates(worker): %s", string(m.Data))
+		wg.Done()
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for i := 0; i < size; i++ {
+		if err := nc.Publish("updates", []byte(fmt.Sprintf("%d: All is Well", i))); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	wg.Wait()
+}
+
 func main() {
 	flag.Parse()
 
@@ -162,4 +197,6 @@ func main() {
 	subjectBasedMessaging(nc)
 
 	requestReply(nc)
+
+	queueSubscribersScalability(nc)
 }
