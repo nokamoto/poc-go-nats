@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	nats "github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go"
 	"log"
 	"time"
 )
@@ -22,8 +22,9 @@ func wait(sub *nats.Subscription) error {
 }
 
 func subjectBasedMessaging(nc *nats.Conn) {
-	// time.us -> nats-server -> us1(time.us), us2(time.us)
-	//
+	log.Println()
+	log.Println("https://nats-io.github.io/docs/developer/concepts/subjects.html")
+	log.Println("time.us -> nats-server -> us1(time.us), us2(time.us)")
 	// Subscribe
 	us1, err := nc.SubscribeSync("time.us")
 	if err != nil {
@@ -48,8 +49,10 @@ func subjectBasedMessaging(nc *nats.Conn) {
 		log.Fatal(err)
 	}
 
-	// time.us.east -> nats-server -> usEast(time.us.east), usAnyEast(time.*.east)
-	//
+	log.Println()
+
+	log.Println("time.us.east -> nats-server -> usEast(time.us.east), usAnyEast(time.*.east)")
+
 	// Subscribe
 	usEast, err := nc.SubscribeSync("time.us.east")
 	if err != nil {
@@ -74,8 +77,11 @@ func subjectBasedMessaging(nc *nats.Conn) {
 		log.Fatal(err)
 	}
 
-	// time.us.east.atlanta -> nats-server -> usAnyPlus(time.us.>)
-	//                                      x usAny(time.us.*)
+	log.Println()
+
+	log.Println("time.us.east.atlanta -> nats-server -> usAnyPlus(time.us.>)")
+	log.Println("                                     x usAny(time.us.*)")
+
 	// Subscribe
 	usAnyPlus, err := nc.SubscribeSync("time.us.>")
 	if err != nil {
@@ -101,6 +107,47 @@ func subjectBasedMessaging(nc *nats.Conn) {
 	}
 }
 
+func requestReply(nc *nats.Conn) {
+	log.Println()
+	log.Println("https://nats-io.github.io/docs/developer/concepts/reqreply.html")
+	log.Println("publisher -> subject -> subscriber -> reply -> publisher")
+
+	request, err := nc.SubscribeSync("subject")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	reply, err := nc.SubscribeSync("reply")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Send the request
+	err = nc.PublishRequest("subject", "reply", []byte("All is Well"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Wait for a single request
+	msg, err := request.NextMsg(10 * time.Second)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("%s: %s", request.Subject, string(msg.Data))
+
+	// Send the response
+	err = msg.Respond([]byte(fmt.Sprintf("echo %s", string(msg.Data))))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Wait for a single response
+	if err := wait(reply); err != nil {
+		log.Fatal(err)
+	}
+}
+
 func main() {
 	flag.Parse()
 
@@ -113,4 +160,6 @@ func main() {
 	defer nc.Close()
 
 	subjectBasedMessaging(nc)
+
+	requestReply(nc)
 }
